@@ -30,58 +30,59 @@
  * \brief WSG-50 sim driver.
  */
 
-#include <ros/ros.h>
-#include <wsg_50_common/Move.h>
-#include <wsg_50_common/Incr.h>
-#include <std_msgs/Float64.h>
-#include <std_srvs/Empty.h>
+#include <rclcpp/rclcpp.hpp>
+#include <wsg_50_common/srv/move.hpp>
+#include <wsg_50_common/srv/incr.hpp>
+#include <std_msgs/msg/float64.hpp>
+#include <std_srvs/srv/empty.hpp>
 
 #define GRIPPER_MAX_OPEN 110.0
 #define GRIPPER_MIN_OPEN 0.0
 
 using namespace std;
 
-ros::Publisher vel_pub_r_, vel_pub_l_;
-ros::ServiceClient moveSC;
+rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr vel_pub_r_, vel_pub_l_;
+std::shared_ptr<rclcpp::Node> g_node;
 double currentOpenning;
 
 void move(double width){
 	
 		double open = width / 2;
 		
-		std_msgs::Float64 lCommand, rCommand;
+		std_msgs::msg::Float64 lCommand, rCommand;
 		
 		rCommand.data = open/1000;
 		lCommand.data = rCommand.data * -1.0;
 		
-		vel_pub_r_.publish(rCommand);
-		vel_pub_l_.publish(lCommand);
+		vel_pub_r_->publish(rCommand);
+		vel_pub_l_->publish(lCommand);
 		
 		currentOpenning = width;
 	
 }
 
-bool moveSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Response &res)
+void moveSrv(const std::shared_ptr<wsg_50_common::srv::Move::Request> req,
+             std::shared_ptr<wsg_50_common::srv::Move::Response> res)
 {
-	if ( req.width >= 0.0 && req.width <= 110.0 ){
-  		ROS_INFO("Moving to %f position.", req.width);
-		move(req.width);
+	if ( req->width >= 0.0 && req->width <= 110.0 ){
+  		RCLCPP_INFO(g_node->get_logger(), "Moving to %f position.", req->width);
+		move(req->width);
 		
-	}else if (req.width < 0.0 || req.width > 110.0){
-		ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - 110.0] ");
-		return false;
+	}else if (req->width < 0.0 || req->width > 110.0){
+		RCLCPP_ERROR(g_node->get_logger(), "Imposible to move to this position. (Width values: [0.0 - 110.0] ");
+		return;
 	}
 
-	ROS_INFO("Target position reached.");
-  	return true;
+	RCLCPP_INFO(g_node->get_logger(), "Target position reached.");
 }
 
-bool moveIncrementallySrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr::Response &res)
+void moveIncrementallySrv(const std::shared_ptr<wsg_50_common::srv::Incr::Request> req,
+                          std::shared_ptr<wsg_50_common::srv::Incr::Response> res)
 {
 				
-	if (req.direction == "open"){
+	if (req->direction == "open"){
 		
-		float nextWidth = currentOpenning + req.increment;
+		float nextWidth = currentOpenning + req->increment;
 		
 		if ( (currentOpenning < GRIPPER_MAX_OPEN) && nextWidth < GRIPPER_MAX_OPEN ){
 			move(nextWidth);
@@ -90,9 +91,9 @@ bool moveIncrementallySrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr
 			currentOpenning = GRIPPER_MAX_OPEN;
 		}
 
-	}else if (req.direction == "close"){
+	}else if (req->direction == "close"){
 
-		float nextWidth = currentOpenning - req.increment;
+		float nextWidth = currentOpenning - req->increment;
 		
 		if ( (currentOpenning > GRIPPER_MIN_OPEN) && nextWidth > GRIPPER_MIN_OPEN ){
 			move(nextWidth);
@@ -105,49 +106,51 @@ bool moveIncrementallySrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr
 }
 
 
-bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
+void homingSrv(const std::shared_ptr<std_srvs::srv::Empty::Request> req,
+               std::shared_ptr<std_srvs::srv::Empty::Response> res)
 {
-	ROS_INFO("Homing...");
+	RCLCPP_INFO(g_node->get_logger(), "Homing...");
 	
 	move(0.0);
 	
-	ROS_INFO("Home position reached.");
-	return true;
+	RCLCPP_INFO(g_node->get_logger(), "Home position reached.");
 }
 
-bool graspSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Request &res)
+void graspSrv(const std::shared_ptr<wsg_50_common::srv::Move::Request> req,
+              std::shared_ptr<wsg_50_common::srv::Move::Response> res)
 {
-	ROS_INFO("Grasping...");
+	RCLCPP_INFO(g_node->get_logger(), "Grasping...");
 	
 	// TODO: Increase finger force
 	move(0.0);
 	
-	ROS_INFO("Object grasped");
-	return true;
+	RCLCPP_INFO(g_node->get_logger(), "Object grasped");
 }
 
 
 int main(int argc, char** argv){
 	
-	ros::init(argc, argv, "wsg_50_sim_driver");
-
-	ros::NodeHandle nh("~");
+	rclcpp::init(argc, argv);
+	g_node = std::make_shared<rclcpp::Node>("wsg_50_sim_driver");
 	
 	std::string vel_pub_l_Topic, vel_pub_r_Topic;
 	
-	nh.param<std::string>("vel_pub_l_Topic", vel_pub_l_Topic, "/wsg_50_gl/command");
-	nh.param<std::string>("vel_pub_r_Topic", vel_pub_r_Topic, "/wsg_50_gr/command");
+	g_node->declare_parameter("vel_pub_l_Topic", "/wsg_50_gl/command");
+	g_node->declare_parameter("vel_pub_r_Topic", "/wsg_50_gr/command");
+	vel_pub_l_Topic = g_node->get_parameter("vel_pub_l_Topic").as_string();
+	vel_pub_r_Topic = g_node->get_parameter("vel_pub_r_Topic").as_string();
 	
     currentOpenning = 0.0;
 	
-	ros::ServiceServer moveSS = nh.advertiseService("move", moveSrv);
-	ros::ServiceServer moveIncrementallySS = nh.advertiseService("move_incrementally", moveIncrementallySrv);
-	ros::ServiceServer homingSS = nh.advertiseService("homing", homingSrv);
-	ros::ServiceServer graspSS = nh.advertiseService("grasp", graspSrv);
+	auto moveSS = g_node->create_service<wsg_50_common::srv::Move>("move", moveSrv);
+	auto moveIncrementallySS = g_node->create_service<wsg_50_common::srv::Incr>("move_incrementally", moveIncrementallySrv);
+	auto homingSS = g_node->create_service<std_srvs::srv::Empty>("homing", homingSrv);
+	auto graspSS = g_node->create_service<wsg_50_common::srv::Move>("grasp", graspSrv);
 	
-	vel_pub_l_ = nh.advertise<std_msgs::Float64>(vel_pub_l_Topic, 1000);
-	vel_pub_r_ = nh.advertise<std_msgs::Float64>(vel_pub_r_Topic, 1000);
+	vel_pub_l_ = g_node->create_publisher<std_msgs::msg::Float64>(vel_pub_l_Topic, 1000);
+	vel_pub_r_ = g_node->create_publisher<std_msgs::msg::Float64>(vel_pub_r_Topic, 1000);
 	
-	ros::spin();
-	
+	rclcpp::spin(g_node);
+	rclcpp::shutdown();
+	return 0;
 } 

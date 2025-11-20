@@ -32,12 +32,12 @@
 
 #include <termios.h>
 #include <signal.h>
-#include <math.h>
+#include <cmath>
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <ros/ros.h>
-#include <std_msgs/Float64.h>
+#include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float64.hpp>
 
 #define KEYCODE_A 0x61
 #define KEYCODE_D 0x64
@@ -51,25 +51,24 @@
 #define MIN_GRIPPER_OPEN 0.0
 
 
-class Wsg50Teleop
+class Wsg50Teleop : public rclcpp::Node
 {
   private:
   double open_increment, close_increment, grasp_increment, force;
-  std_msgs::Float64 cmd;
+  std_msgs::msg::Float64 cmd;
 
-  ros::NodeHandle n_;
-  ros::Publisher vel_pub_r_, vel_pub_l_;
+  rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr vel_pub_r_, vel_pub_l_;
 
   public:
-  void init()
+  Wsg50Teleop() : Node("wsg_50_teleop")
   { 
     cmd.data = 0;
 
-    vel_pub_r_ = n_.advertise<std_msgs::Float64>("/wsg_50_gr/command", 1);
-    vel_pub_l_ = n_.advertise<std_msgs::Float64>("/wsg_50_gl/command", 1);
+    vel_pub_r_ = this->create_publisher<std_msgs::msg::Float64>("/wsg_50_gr/command", 1);
+    vel_pub_l_ = this->create_publisher<std_msgs::msg::Float64>("/wsg_50_gl/command", 1);
 
-    ros::NodeHandle n_private("~");
-    n_private.param("open_increment", open_increment, 0.001);
+    this->declare_parameter("open_increment", 0.001);
+    open_increment = this->get_parameter("open_increment").as_double();
   }
   
   ~Wsg50Teleop()   { }
@@ -80,24 +79,27 @@ class Wsg50Teleop
 int kfd = 0;
 struct termios cooked, raw;
 float currentPos;
+std::shared_ptr<Wsg50Teleop> g_teleop_node;
 
 void quit(int sig)
 {
+  (void)sig;
   tcsetattr(kfd, TCSANOW, &cooked);
+  rclcpp::shutdown();
   exit(0);
 }
 
 int main(int argc, char** argv)
 {
-  ros::init(argc, argv, "wsg_50_teleop");
+  rclcpp::init(argc, argv);
 
-  Wsg50Teleop tpk;
-  tpk.init();
+  g_teleop_node = std::make_shared<Wsg50Teleop>();
 
   signal(SIGINT,quit);
 
-  tpk.keyboardLoop();
+  g_teleop_node->keyboardLoop();
 
+  rclcpp::shutdown();
   return(0);
 }
 
@@ -152,9 +154,9 @@ void Wsg50Teleop::keyboardLoop()
     
     if (dirty == true)
     {
-      vel_pub_r_.publish(cmd);
+      vel_pub_r_->publish(cmd);
       cmd.data = cmd.data * -1.0; // Adapt for the left gripper
-      vel_pub_l_.publish(cmd);
+      vel_pub_l_->publish(cmd);
     }
 
 

@@ -1,25 +1,17 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(wsg_50_driver)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  std_msgs
-  std_srvs
-  wsg_50_common
-)
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
 
-catkin_package(
-#   INCLUDE_DIRS include
-#  LIBRARIES vh_pixelmap
-  CATKIN_DEPENDS roscpp std_msgs std_srvs wsg_50_common
-#  DEPENDS system_lib
-)
-
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
+## Find ament and dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(wsg_50_common REQUIRED)
 
 
 # WSG_50_TCP version
@@ -47,31 +39,36 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+include_directories(
+  include
+)
+
 add_definitions(-DOSNAME_LINUX)
 add_definitions(-g)
 
-# C++11 Needed
-include(CheckCXXCompilerFlag)
-
-CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
-
-if(COMPILER_SUPPORTS_CXX11)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-elseif(COMPILER_SUPPORTS_CXX0X)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-else()
-    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+# C++14 required for ROS2
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 14)
 endif()
 
 add_executable(wsg_50_ip src/main.cpp ${DRIVER_SOURCES})
-target_link_libraries(wsg_50_ip ${catkin_LIBRARIES})
-add_dependencies(wsg_50_ip wsg_50_common_generate_messages_cpp)
 
-#add_executable(wsg_50_can src/main_can.cpp src/checksum.cpp src/msg.c src/common.cpp src/functions_can.cpp)
-#add_executable(wsg_50_can src/main_can.cpp ${DRIVER_SOURCES_CAN})
+ament_target_dependencies(wsg_50_ip
+  rclcpp
+  std_msgs
+  std_srvs
+  sensor_msgs
+  wsg_50_common
+)
 
-#include_directories(/home/marc/peak-linux-driver-7.5/driver/src/)
-#link_directories(/home/marc/peak-linux-driver-7.5/lib/)
-#add_compile_flags(wsg_50_can -g -Wall)
-#target_link_libraries(wsg_50_can pcan)
+install(TARGETS
+  wsg_50_ip
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+install(DIRECTORY
+  include/
+  DESTINATION include
+)
+
+ament_package()

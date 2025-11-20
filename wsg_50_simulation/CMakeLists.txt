@@ -1,35 +1,50 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.8)
 project(wsg_50_simulation)
 
-## Find catkin macros and libraries
-## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
-## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  roscpp
+# Default to C++17
+if(NOT CMAKE_CXX_STANDARD)
+  set(CMAKE_CXX_STANDARD 17)
+endif()
+
+if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+  add_compile_options(-Wall -Wextra -Wpedantic)
+endif()
+
+# Find dependencies
+find_package(ament_cmake REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(std_msgs REQUIRED)
+find_package(std_srvs REQUIRED)
+find_package(urdf REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(wsg_50_common REQUIRED)
+
+# wsg_50_sim_keyboard_teleop executable
+add_executable(wsg_50_sim_keyboard_teleop src/wsg_50_keyboard_teleop.cpp)
+ament_target_dependencies(wsg_50_sim_keyboard_teleop
+  rclcpp
   std_msgs
   std_srvs
   urdf
   wsg_50_common
 )
 
-catkin_package(
-#   INCLUDE_DIRS include
-#  LIBRARIES vh_pixelmap
-  CATKIN_DEPENDS roscpp urdf std_msgs std_srvs wsg_50_common
-#  DEPENDS system_lib
-)
-
-## System dependencies are found with CMake's conventions
-# find_package(Boost REQUIRED COMPONENTS system)
-
-include_directories(
-  ${catkin_INCLUDE_DIRS}
-)
-
-add_executable(wsg_50_sim_keyboard_teleop src/wsg_50_keyboard_teleop.cpp)
-target_link_libraries(wsg_50_sim_keyboard_teleop ${catkin_LIBRARIES})
-add_dependencies(wsg_50_sim_keyboard_teleop wsg_50_common_generate_messages_cpp)
-
+# wsg_50_sim_driver executable
 add_executable(wsg_50_sim_driver src/wsg_50_sim_driver.cpp)
-target_link_libraries(wsg_50_sim_driver ${catkin_LIBRARIES})
-add_dependencies(wsg_50_sim_driver wsg_50_common_generate_messages_cpp)
+ament_target_dependencies(wsg_50_sim_driver
+  rclcpp
+  std_msgs
+  std_srvs
+  urdf
+  sensor_msgs
+  wsg_50_common
+)
+
+# Install executables
+install(TARGETS
+  wsg_50_sim_keyboard_teleop
+  wsg_50_sim_driver
+  DESTINATION lib/${PROJECT_NAME}
+)
+
+ament_package()

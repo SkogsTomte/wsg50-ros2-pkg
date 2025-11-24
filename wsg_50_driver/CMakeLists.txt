@@ -72,3 +72,9 @@ install(DIRECTORY
 )
 
 ament_package()
+
+# Install launch files (ROS2)
+install(DIRECTORY
+  launch/
+  DESTINATION share/${PROJECT_NAME}
+)

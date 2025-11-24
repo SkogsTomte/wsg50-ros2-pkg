@@ -21,6 +21,8 @@
   <depend>urdf</depend>
   <depend>sensor_msgs</depend>
   <depend>wsg_50_common</depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
